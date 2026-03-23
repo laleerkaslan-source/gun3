@@ -209,8 +209,18 @@
     </div>
 
     <script>
-        let todos = JSON.parse(localStorage.getItem('todos') || '[]');
+        const SUPABASE_URL = 'https://bkomcqzvetrmkzzweaht.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrb21jcXp2ZXRybWt6endlYWh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNDg1NjEsImV4cCI6MjA4OTgyNDU2MX0.9TY5wilCX3Qew_a37IfBR6nrVsDCyN0wY4K8aGOGs_w';
+        const headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        };
+
+        let todos = [];
         let filter = 'all';
+        let editingId = null;
 
         const input = document.getElementById('todoInput');
         const list = document.getElementById('todoList');
@@ -219,33 +229,47 @@
             if (e.key === 'Enter') addTodo();
         });
 
-        function save() {
-            localStorage.setItem('todos', JSON.stringify(todos));
+        async function fetchTodos() {
+            const res = await fetch(SUPABASE_URL + '/rest/v1/todos?order=created_at.asc', { headers });
+            todos = await res.json();
+            render();
         }
 
-        function addTodo() {
+        async function addTodo() {
             const text = input.value.trim();
             if (!text) return;
-            todos.push({ text, done: false, id: Date.now() });
             input.value = '';
-            save();
+            const res = await fetch(SUPABASE_URL + '/rest/v1/todos', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ text, done: false })
+            });
+            const data = await res.json();
+            todos.push(data[0]);
             render();
         }
 
-        function toggleTodo(id) {
+        async function toggleTodo(id) {
             const todo = todos.find(t => t.id === id);
-            if (todo) todo.done = !todo.done;
-            save();
+            if (!todo) return;
+            const newDone = !todo.done;
+            todo.done = newDone;
             render();
+            await fetch(SUPABASE_URL + '/rest/v1/todos?id=eq.' + id, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ done: newDone })
+            });
         }
 
-        function deleteTodo(id) {
+        async function deleteTodo(id) {
             todos = todos.filter(t => t.id !== id);
-            save();
             render();
+            await fetch(SUPABASE_URL + '/rest/v1/todos?id=eq.' + id, {
+                method: 'DELETE',
+                headers
+            });
         }
-
-        let editingId = null;
 
         function startEdit(id) {
             editingId = id;
@@ -257,15 +281,19 @@
             render();
         }
 
-        function saveEdit(id) {
+        async function saveEdit(id) {
             const editInput = document.getElementById('editInput');
             const newText = editInput.value.trim();
             if (!newText) return;
             const todo = todos.find(t => t.id === id);
             if (todo) todo.text = newText;
             editingId = null;
-            save();
             render();
+            await fetch(SUPABASE_URL + '/rest/v1/todos?id=eq.' + id, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ text: newText })
+            });
         }
 
         function setFilter(f, btn) {
@@ -321,7 +349,7 @@
             return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
 
-        render();
+        fetchTodos();
     </script>
 </body>
 </html>
